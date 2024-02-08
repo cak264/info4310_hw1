@@ -1,0 +1,239 @@
+<html>
+    <head>
+        <h3>Cameron Kull, cak264</h3>
+        <script src="https://d3js.org/d3.v7.min.js"></script>
+        <script src="https://d3js.org/topojson.v3.min.js"></script>
+
+        <style>
+  
+            .gridlines line {
+              stroke: #bbb;
+            }
+            
+            .gridlines .domain {
+              stroke: none;
+            }
+          
+        </style>
+    </head>
+    <body>
+        <svg id = "map" width="600" height="850"></svg>
+
+        <script>
+            // map
+            // constants
+            const svg = d3.select("#map");
+            const mapWidth = svg.attr("width");
+            const mapHeight = svg.attr("height");
+            let map = svg.append("g")
+                            .attr("transform", `translate(${0}, ${-50})`);
+            let viewport = svg.append("g")
+                            .attr("transform", `translate(${0}, ${-50})`);
+
+            // map setup
+            const requestData = async function(){
+                const sanfran = await d3.json("SF-Neighborhoods.geo.json");
+                console.log(sanfran);
+
+                let trees = await d3.csv("Street_Tree_List-2022-01-30_RAW.csv", d3.autoType); 
+                trees = trees.filter(t=> t.DBH != null && t.DBH >=5 && t.qLegalStatus!= null);   
+                console.log(trees);  
+
+                var neighborhoods = topojson.feature(sanfran, sanfran.objects.SFNeighborhoods);
+                var neighborhoodsMesh = topojson.mesh(sanfran, sanfran.objects.SFNeighborhoods);
+                var projection = d3.geoMercator().fitSize([mapWidth, mapHeight], neighborhoods)
+                var path = d3.geoPath().projection(projection)
+
+                // construct the visualization
+                map.selectAll("path.neighborhoods").data(neighborhoods.features)
+                    .join("path")
+                    .attr("class", "neighborhoods")
+                    .attr("d", path)
+                    .attr('fill', '#e6e6e6');
+                
+
+                // plotting trees
+
+                const dbh_extent = d3.extent(trees, d=>d.DBH);
+                const dbh_scale = d3.scaleLinear().domain(dbh_extent).range([1, 13]);
+
+                trees.forEach(tree => {
+                    if (tree.qLegalStatus == "DPW Maintained" || tree.qLegalStatus == "Permitted Site"){
+                        tree.color = "#171b82"
+                    } else if (tree.qLegalStatus == "Landmark tree" || tree.qLegalStatus == "Significant Tree"){
+                        tree.color = "#faf31e"
+                    }else {
+                        tree.color = "#d60d0d"
+                    };
+
+                });
+
+                viewport.selectAll("circle").data(trees)
+                        .join("circle")
+                        .attr("cx", t=> projection([t.Longitude, t.Latitude])[0])
+                        .attr("cy", t=> projection([t.Longitude, t.Latitude])[1])
+                        .attr("r", t=> dbh_scale(t.DBH))
+                        .attr("fill", t=> t.color)
+                        .attr("opacity", t=>{if(t.color == "#171b82"){
+                                return 0.3
+                            }
+                            else{
+                                return 1
+                            }
+                        });
+
+                viewport.append("path").datum(neighborhoodsMesh)
+                    .attr("d", path)
+                    .attr("stroke", "black")
+                    .attr("stroke-width", 1)
+                    .attr("fill", 'none');   
+
+                let circles = viewport.selectAll("circle");
+
+                circles.each( function(c) {
+                    let circ = d3.select(this)
+                    if (c.color == "#d60d0d" || c.color == "#faf31e"){
+                        circ.attr("stroke", "black")
+                            .attr("stroke-width", 0.5)
+                            .raise();
+                    }
+                });
+
+                // add keys
+
+                let colorKey = svg.append("g")
+                                    .attr("id", "color-key")
+                                    .attr("transform", `translate(${50}, ${700})`);
+                colorKey.append("rect")
+                        .attr("x", 0)
+                        .attr("y", 0)
+                        .attr("height",100)
+                        .attr("width",220)
+                        .attr("stroke", "black")
+                        .attr("fill", "none");
+                colorKey.append("text")
+                        .text("Legal Status")
+                        .attr("x", 10)
+                        .attr("y", 20);
+                colorKey.append("rect")
+                        .attr("x", 15)
+                        .attr("y", 30)
+                        .attr("height",10)
+                        .attr("width",20)
+                        .attr("stroke", "black")
+                        .attr("fill", "#171b82");
+                colorKey.append("rect")
+                        .attr("x", 15)
+                        .attr("y", 50)
+                        .attr("height",10)
+                        .attr("width",20)
+                        .attr("stroke", "black")
+                        .attr("fill", "#faf31e");
+                colorKey.append("rect")
+                        .attr("x", 15)
+                        .attr("y", 70)
+                        .attr("height",10)
+                        .attr("width",20)
+                        .attr("stroke", "black")
+                        .attr("fill", "#d60d0d");
+                colorKey.append("text")
+                        .text("= DPW Maintained/Permitted Site")
+                        .attr("x", 40)
+                        .attr("y", 40)
+                        .attr("font-size", 12);
+                colorKey.append("text")
+                        .text("= Landmark/Significant Tree")
+                        .attr("x", 40)
+                        .attr("y", 60)
+                        .attr("font-size", 12);
+                colorKey.append("text")
+                        .text("= Other")
+                        .attr("x", 40)
+                        .attr("y", 80)
+                        .attr("font-size", 12);
+
+                let sizeKey = svg.append("g")
+                                    .attr("id", "size-key")
+                                    .attr("transform", `translate(${300}, ${700})`);
+                sizeKey.append("rect")
+                        .attr("x", 0)
+                        .attr("y", 0)
+                        .attr("height",100)
+                        .attr("width",220)
+                        .attr("stroke", "black")
+                        .attr("fill", "none");
+                sizeKey.append("circle")
+                        .attr("cx", 30)
+                        .attr("cy", 50)
+                        .attr("r", dbh_scale(30))
+                        .attr("fill", "none")
+                        .attr("stroke", "black");
+                sizeKey.append("circle")
+                        .attr("cx", 60)
+                        .attr("cy", 50)
+                        .attr("r", dbh_scale(60))
+                        .attr("fill", "none")
+                        .attr("stroke", "black");
+                sizeKey.append("circle")
+                        .attr("cx", 90)
+                        .attr("cy", 50)
+                        .attr("r", dbh_scale(90))
+                        .attr("fill", "none")
+                        .attr("stroke", "black");
+                sizeKey.append("circle")
+                        .attr("cx", 125)
+                        .attr("cy", 50)
+                        .attr("r", dbh_scale(120))
+                        .attr("fill", "none")
+                        .attr("stroke", "black");
+                sizeKey.append("circle")
+                        .attr("cx", 165)
+                        .attr("cy", 50)
+                        .attr("r", dbh_scale(150))
+                        .attr("fill", "none")
+                        .attr("stroke", "black");
+                sizeKey.append("text")
+                        .text("Diameter at Breast Height (DBH)")
+                        .attr("x", 3)
+                        .attr("y", 20);
+                sizeKey.append("text")
+                        .text("30")
+                        .attr("x", 25)
+                        .attr("y", 80)
+                        .attr("font-size", 12);
+                sizeKey.append("text")
+                        .text("60")
+                        .attr("x", 55)
+                        .attr("y", 80)
+                        .attr("font-size", 12);
+                sizeKey.append("text")
+                        .text("90")
+                        .attr("x", 85)
+                        .attr("y", 80)
+                        .attr("font-size", 12);
+                sizeKey.append("text")
+                        .text("120")
+                        .attr("x", 115)
+                        .attr("y", 80)
+                        .attr("font-size", 12);
+                sizeKey.append("text")
+                        .text("150")
+                        .attr("x", 155)
+                        .attr("y", 80)
+                        .attr("font-size", 12);
+
+                svg.append("text")
+                    .text("Assessing Legal Status and DBH of SF Trees")
+                    .attr("x", 100)
+                    .attr("y", 100)
+                    .attr("font-size", 20);
+
+
+
+            };
+                
+
+            requestData();
+        </script>
+    </body>
+</html>
