@@ -6,7 +6,7 @@ app.wsgi_app = WhiteNoise(app.wsgi_app, root='hw1/', prefix='hw1/', index_file='
 
 @app.route('/', methods = ["GET"])
 def hello():
-    return make_response("Test")
+    return make_response("Hello world!!")
 
 if __name__ == "__main__":
     app.run(threaded=True, port=5000)
